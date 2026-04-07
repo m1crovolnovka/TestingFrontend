@@ -11,5 +11,5 @@ module.exports = defineConfig({
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
   },
-  reporter: [['html', { open: 'never' }]],
+  reporter: [['allure-playwright']],
 });

@@ -118,6 +118,7 @@ jobs:
           name: allure-results
           path: allure-results/
 
+
   # --- ОТЧЕТЫ И TELEGRAM ---
   report-and-notify:
     needs: test-and-report

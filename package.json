@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-  "start": "node server.js",
-  "test": "npx playwright test",
-  "test:ui": "npx playwright test --ui",
-  "report": "npx playwright show-report"
-},
+    "start": "node server.js",
+    "test": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "report": "npx playwright show-report"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -16,6 +16,8 @@
     "express": "^5.2.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.0"
+    "@playwright/test": "^1.59.0",
+    "allure-commandline": "^2.38.1",
+    "allure-playwright": "^3.7.0"
   }
 }
