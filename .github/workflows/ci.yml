@@ -69,23 +69,25 @@ jobs:
           SPRING_DATASOURCE_USERNAME: user
           SPRING_DATASOURCE_PASSWORD: password
 
-      # 5. ЗАПУСК БЭКЕНДА В ФОНЕ ДЛЯ UI ТЕСТОВ
+      # 5. ЗАПУСК БЭКЕНДА С ФИКСИРОВАННЫМ ПОРТОМ И ЛОГИРОВАНИЕМ
       - name: Start Backend Server
         run: |
-          mvn spring-boot:run & 
-          echo "Waiting for server to start..."
+          # Запускаем и перенаправляем вывод в файл backend.log
+          mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=8082" > backend.log 2>&1 &
+          echo "Backend started in background. Checking logs..."
         working-directory: ./backend-repo
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/library_db
           SPRING_DATASOURCE_USERNAME: user
           SPRING_DATASOURCE_PASSWORD: password
-          SERVER_PORT: 8082
 
-      # 6. ОЖИДАНИЕ (чтобы не было Failed to fetch)
+      # 6. ОЖИДАНИЕ С ДИАГНОСТИКОЙ
       - name: Wait for Backend API
-        run: npx wait-on http://localhost:8082/api/books/1 --timeout 60000
+        run: |
+          # Пытаемся дождаться порта, если упадет — выведем логи бэкенда
+          npx wait-on http-get://localhost:8082/api/books/1 --timeout 90000 || (echo "Бэкенд не запустился! Логи:" && cat backend-repo/backend.log && exit 1)
 
-      # 7. Запуск UI тестов
+      # 7. Запуск UI тестов (добавляем отладку)
       - name: Run UI Tests
         run: npm run test
         env:
