@@ -69,25 +69,29 @@ jobs:
           SPRING_DATASOURCE_USERNAME: user
           SPRING_DATASOURCE_PASSWORD: password
 
-      # 5. ЗАПУСК БЭКЕНДА С ФИКСИРОВАННЫМ ПОРТОМ И ЛОГИРОВАНИЕМ
+      # 5. Сборка JAR-файла (чтобы запуск был мгновенным)
+      - name: Package Backend
+        run: mvn clean package -DskipTests
+        working-directory: ./backend-repo
+
+      # 6. ЗАПУСК ГОТОВОГО JAR В ФОНЕ
       - name: Start Backend Server
         run: |
-          # Запускаем и перенаправляем вывод в файл backend.log
-          mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=8082" > backend.log 2>&1 &
-          echo "Backend started in background. Checking logs..."
+          # Находим созданный jar и запускаем его напрямую через java
+          java -jar target/*.jar --server.port=8082 > backend.log 2>&1 &
+          echo "Backend application is starting..."
         working-directory: ./backend-repo
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/library_db
           SPRING_DATASOURCE_USERNAME: user
           SPRING_DATASOURCE_PASSWORD: password
 
-      # 6. ОЖИДАНИЕ С ДИАГНОСТИКОЙ
+      # 7. ОЖИДАНИЕ (теперь 90 секунд точно хватит для запуска JAR)
       - name: Wait for Backend API
         run: |
-          # Пытаемся дождаться порта, если упадет — выведем логи бэкенда
-          npx wait-on http-get://localhost:8082/api/books/1 --timeout 90000 || (echo "Бэкенд не запустился! Логи:" && cat backend-repo/backend.log && exit 1)
+          npx wait-on http://localhost:8082 --timeout 90000 || (echo "Бэкенд не ответил! Логи:" && cat backend-repo/backend.log && exit 1)
 
-      # 7. Запуск UI тестов (добавляем отладку)
+      # 8. Запуск UI тестов
       - name: Run UI Tests
         run: npm run test
         env:
