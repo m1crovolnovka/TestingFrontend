@@ -69,30 +69,34 @@ jobs:
           SPRING_DATASOURCE_USERNAME: user
           SPRING_DATASOURCE_PASSWORD: password
 
-      # 5. Сборка JAR-файла (чтобы запуск был мгновенным)
+      # 5. Сборка бэкенда (пропускаем тесты для скорости)
       - name: Package Backend
         run: mvn clean package -DskipTests
         working-directory: ./backend-repo
 
-      # 6. ЗАПУСК ГОТОВОГО JAR В ФОНЕ
+      # 6. Запуск JAR в фоне
       - name: Start Backend Server
         run: |
-          # Находим созданный jar и запускаем его напрямую через java
           java -jar target/*.jar --server.port=8082 > backend.log 2>&1 &
-          echo "Backend application is starting..."
+          echo "Waiting for Tomcat to wake up on port 8082..."
         working-directory: ./backend-repo
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/library_db
           SPRING_DATASOURCE_USERNAME: user
           SPRING_DATASOURCE_PASSWORD: password
 
-      # 7. ОЖИДАНИЕ (используем проверку только порта или принимаем любой HTTP код)
-      - name: Wait for Backend API
+      # 7. ПРОВЕРКА ПОРТА ЧЕРЕЗ CURL (вместо wait-on)
+      - name: Health Check
         run: |
-          # Флаг --httpStatusCode позволяет принимать 404 как успешный запуск
-          npx wait-on http://localhost:8082 --timeout 60000 
+          timeout 60s bash -c 'until curl -s localhost:8082 > /dev/null; do sleep 2; echo "Still waiting for 8082..."; done' || (echo "Бэкенд не поднялся!" && cat backend-repo/backend.log && exit 1)
 
-      # 8. Запуск UI тестов
+      # 8. (ВАЖНО) Наполнение базы данными для UI-тестов
+      # Если тесты ищут ID 101, мы должны его создать
+      - name: Seed Database
+        run: |
+          PGPASSWORD=password psql -h localhost -U user -d library_db -c "INSERT INTO books (id, daily_rate, days_overdue, is_returned) VALUES (101, 2.0, 5, false) ON CONFLICT DO NOTHING;"
+
+      # 9. Запуск UI тестов
       - name: Run UI Tests
         run: npm run test
         env:
