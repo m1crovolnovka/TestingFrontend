@@ -110,24 +110,22 @@ jobs:
         env:
           JAVA_API_URL: http://localhost:8082
 
-      - name: Сбор всех результатов в одну папку
+      # 3. СЛИЯНИЕ РЕЗУЛЬТАТОВ
+      - name: Combine Allure Results
         if: always()
         run: |
-          # Создаем общую директорию для Allure
-          mkdir -p all-results
-          
-          # Копируем результаты фронтенда (если они в корне)
-          cp -r allure-results/* all-results/ || true
-          
-          # Копируем результаты бэкенда из папки target
-          cp -r backend-repo/target/allure-results/* all-results/ || true
+          mkdir -p combined-results
+          # Копируем результаты фронтенда
+          cp -r allure-results/* combined-results/ || echo "No frontend results"
+          # Копируем результаты бэкенда (ВАЖНО: проверь путь до target)
+          cp -r backend-repo/target/allure-results/* combined-results/ || echo "No backend results"
 
-      - name: Save Combined Results
+      # 4. ГЕНЕРАЦИЯ ОТЧЕТА ИЗ ОБЩЕЙ ПАПКИ
+      - name: Generate Allure Report
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: allure-results
-          path: all-results/
+        run: |
+          npm install -g allure-commandline
+          allure generate combined-results -o allure-report --clean
 
 
   # --- ОТЧЕТЫ И TELEGRAM ---
