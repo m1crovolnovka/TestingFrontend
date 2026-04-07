@@ -2,14 +2,28 @@ name: Full Stack Library CI
 
 on: [push, pull_request]
 
+permissions:
+  contents: write
+
 jobs:
-  # Объединяем тесты бэкенда и фронтенда, так как UI-тестам нужен запущенный сервер
+  # 1. Проверка синтаксиса пайплайна
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run actionlint
+        run: |
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint
+
+  # 2. Основные тесты
   test-and-report:
+    needs: lint
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest] # На Windows запуск фоновых процессов в bash сложнее, для лабы хватит Ubuntu
-        node: [20]
+        os: [ubuntu-latest, windows-latest] # Добавили ОС по заданию
+        node: [18, 20, 22] # Матрица версий Node.js
     runs-on: ${{ matrix.os }}
 
     services:
@@ -28,7 +42,6 @@ jobs:
           --health-retries 5
 
     steps:
-      # 1. Склонировать оба репозитория
       - name: Checkout Frontend
         uses: actions/checkout@v4
 
@@ -39,7 +52,6 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           path: backend-repo
 
-      # 2. Настроить окружение
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -53,14 +65,20 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: 'npm'
 
-      # 3. Установить зависимости
+      # --- КЭШИРОВАНИЕ ---
+      - name: Cache Playwright Browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+
       - name: Install Frontend Deps
         run: npm ci
 
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
 
-      # 4. Прогнать Unit-тесты бэкенда (проверка из задания)
+      # --- ТЕСТЫ БЭКЕНДА ---
       - name: Run Backend Unit Tests
         run: mvn test
         working-directory: ./backend-repo
@@ -69,83 +87,63 @@ jobs:
           SPRING_DATASOURCE_USERNAME: user
           SPRING_DATASOURCE_PASSWORD: password
 
-      # 5. Сборка бэкенда (пропускаем тесты для скорости)
-      - name: Package Backend
-        run: mvn clean package -DskipTests
-        working-directory: ./backend-repo
-
-      # 6. Запуск JAR в фоне
-      - name: Start Backend Server
+      # --- ЗАПУСК И UI ТЕСТЫ (Только на Ubuntu для стабильности порта) ---
+      - name: Build and Run Full Stack Tests
+        if: matrix.os == 'ubuntu-latest'
         run: |
+          # Собираем JAR
+          mvn clean package -DskipTests
+          # Запускаем
           java -jar target/*.jar --server.port=8082 > backend.log 2>&1 &
-          echo "Waiting for Tomcat to wake up on port 8082..."
-        working-directory: ./backend-repo
-        env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/library_db
-          SPRING_DATASOURCE_USERNAME: user
-          SPRING_DATASOURCE_PASSWORD: password
-
-      # 7. ПРОВЕРКА ПОРТА ЧЕРЕЗ CURL (вместо wait-on)
-      - name: Health Check
-        run: |
-          timeout 60s bash -c 'until curl -s localhost:8082 > /dev/null; do sleep 2; echo "Still waiting for 8082..."; done' || (echo "Бэкенд не поднялся!" && cat backend-repo/backend.log && exit 1)
-
-      # 8. Наполнение базы СТРОГО под условия Data-Driven тестов
-      - name: Seed Database
-        run: |
-          # Очищаем таблицу перед вставкой, чтобы старые данные не мешали
-          PGPASSWORD=password psql -h localhost -U user -d library_db -c "TRUNCATE TABLE books;"
           
-          # Вставляем данные, которые соответствуют ожиданиям Playwright
-          PGPASSWORD=password psql -h localhost -U user -d library_db -c "
-          INSERT INTO books (id, daily_rate, days_overdue, is_returned) VALUES 
-          (101, 2.0, 5, false),  -- Тест 1: 5 дней * 2.0 = 10.00 (уже проходит)
-          (102, 2.0, 0, false),  -- Сценарий 0 дней: 0 * 2.0 = 0.00
-          (103, 2.0, 10, false),  -- Сценарий 10 день: 1 * 2.0 = 2.00 (был сбой)
-          (104, 2.0, 1, false); -- Сценарий 1 дней: 10 * 2.0 = 20.00 (был сбой)
-          "
-      # 9. Запуск UI тестов
-      - name: Run UI Tests
-        run: npm run test
+          # Ожидание порта
+          timeout 60s bash -c 'until curl -s localhost:8082 > /dev/null; do sleep 2; done'
+          
+          # Seed DB
+          PGPASSWORD=password psql -h localhost -U user -d library_db -c "TRUNCATE TABLE books; INSERT INTO books (id, daily_rate, days_overdue, is_returned) VALUES (101, 2.0, 5, false), (102, 2.0, 0, false), (103, 2.0, 10, false), (104, 2.0, 1, false);"
+          
+          # UI тесты
+          npm run test
+        working-directory: ./backend-repo
         env:
           JAVA_API_URL: http://localhost:8082
 
-      # 3. СЛИЯНИЕ РЕЗУЛЬТАТОВ
+      # --- СБОР РЕЗУЛЬТАТОВ ---
       - name: Combine Allure Results
         if: always()
+        shell: bash
         run: |
           mkdir -p combined-results
-          # Копируем результаты фронтенда
-          cp -r allure-results/* combined-results/ || echo "No frontend results"
-          # Копируем результаты бэкенда (ВАЖНО: проверь путь до target)
-          cp -r backend-repo/target/allure-results/* combined-results/ || echo "No backend results"
-  
-      - name: Save Allure Results
-        if: always() # <--- ЭТО САМОЕ ВАЖНОЕ (загружать даже если тесты упали)
+          # Фронтенд
+          [ -d allure-results ] && cp -r allure-results/* combined-results/ || echo "No frontend results"
+          # Бэкенд (Путь зависит от настроек allure-maven)
+          [ -d backend-repo/target/allure-results ] && cp -r backend-repo/target/allure-results/* combined-results/ || echo "No backend results"
+
+      - name: Upload Results Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: allure-results # Запомните это имя
+          name: allure-results-${{ matrix.os }}-${{ matrix.node }}
           path: combined-results/
 
-
-  # --- ОТЧЕТЫ И TELEGRAM ---
+  # 3. ГЕНЕРАЦИЯ ОТЧЕТА И УВЕДОМЛЕНИЕ
   report-and-notify:
     needs: test-and-report
     if: always()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Download Results
+
+      - name: Download All Results
         uses: actions/download-artifact@v4
         with:
-          name: allure-results
-          path: allure-results
+          path: all-raw-results
+          merge-multiple: true
 
       - name: Generate Allure Report
         run: |
           npm install -g allure-commandline
-          allure generate allure-results -o allure-report --clean
+          allure generate all-raw-results -o allure-report --clean
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
@@ -159,6 +157,8 @@ jobs:
           to: ${{ secrets.TELEGRAM_TO }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
           message: |
-            CI Status: ${{ needs.test-and-report.result }}
-            Project: ${{ github.repository }}
+            🚀 Pipeline Finished!
+            Status: ${{ needs.test-and-report.result }}
+            OS: Ubuntu, Windows, Mac (Matrix)
+            Node: 18, 20, 22
             Report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
