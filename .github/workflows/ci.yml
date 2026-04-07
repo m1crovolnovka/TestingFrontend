@@ -85,18 +85,22 @@ jobs:
 
       # --- 2. FULL STACK ТЕСТЫ (ТОЛЬКО НА LINUX) ---
       # --- FULL STACK UI TESTING ---
+      # --- FULL STACK UI TESTING ---
       - name: Full Stack UI Testing
         if: matrix.os == 'ubuntu-latest'
         shell: bash
-        # УКАЗЫВАЕМ ПРАВИЛЬНУЮ ПАПКУ ЗДЕСЬ
         working-directory: ./backend-repo
         run: |
-          # 1. Сборка (теперь Maven увидит pom.xml в папке backend-repo)
+          # 1. Сборка
           mvn clean package -DskipTests
           
-          # 2. Запуск (используем кавычки для переменных)
+          # 2. Запуск бэкенда с ПЕРЕДАЧЕЙ ПАРАМЕТРОВ БД
+          # Мы передаем их через -D, чтобы они имели высший приоритет над файлами настроек
           # shellcheck disable=SC2086
-          java -jar target/*.jar --server.port=8082 > backend.log 2>&1 &
+          java -Dspring.datasource.url=jdbc:postgresql://localhost:5432/library_db \
+               -Dspring.datasource.username=user \
+               -Dspring.datasource.password=password \
+               -jar target/*.jar --server.port=8082 > backend.log 2>&1 &
           
           echo "Waiting for Spring Boot..."
           for i in {1..30}; do
@@ -106,7 +110,7 @@ jobs:
             fi
             
             if [ "$i" -eq 30 ]; then
-              echo "ERROR: Timeout - Backend logs:"
+              echo "ERROR: Timeout - Backend logs show connection failure:"
               cat backend.log
               exit 1
             fi
@@ -114,14 +118,13 @@ jobs:
             sleep 3
           done
 
-          # 3. Seed DB
+          # 3. Seed DB (используем те же user/password)
           PGPASSWORD="password" psql -h localhost -U user -d library_db -c "TRUNCATE TABLE books; INSERT INTO books (id, daily_rate, days_overdue, is_returned) VALUES (101, 2.0, 5, false), (102, 2.0, 0, false), (103, 2.0, 10, false), (104, 2.0, 1, false);"
           
-          # 4. Запуск UI тестов
-          # Если Playwright в корне Frontend, нужно выйти на уровень выше
+          # 4. Запуск тестов
           cd ..
           npm run test
-          
+
       # --- 3. СБОР РЕЗУЛЬТАТОВ ---
       - name: Combine Allure Results
         if: always()
