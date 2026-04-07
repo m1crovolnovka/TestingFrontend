@@ -73,7 +73,7 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: Run UI Tests
-        run: npm run test:ui
+        run: npm run test
         env:
           JAVA_API_URL: http://localhost:8082 # Переменная для тестов
 
