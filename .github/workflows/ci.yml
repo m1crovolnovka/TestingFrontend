@@ -90,20 +90,19 @@ jobs:
         run: |
           timeout 60s bash -c 'until curl -s localhost:8082 > /dev/null; do sleep 2; echo "Still waiting for 8082..."; done' || (echo "Бэкенд не поднялся!" && cat backend-repo/backend.log && exit 1)
 
-      # 8. Наполнение базы всеми нужными данными для Data-Driven тестов
+      # 8. Наполнение базы СТРОГО под условия Data-Driven тестов
       - name: Seed Database
         run: |
-          # Вставляем данные для всех сценариев. 
-          # Замени ID и значения на те, которые реально используются в твоем Data-Driven массиве в JS
+          # Очищаем таблицу перед вставкой, чтобы старые данные не мешали
+          PGPASSWORD=password psql -h localhost -U user -d library_db -c "TRUNCATE TABLE books;"
+          
+          # Вставляем данные, которые соответствуют ожиданиям Playwright
           PGPASSWORD=password psql -h localhost -U user -d library_db -c "
           INSERT INTO books (id, daily_rate, days_overdue, is_returned) VALUES 
-          (101, 2.0, 5, false),
-          (102, 1.0, 0, false),
-          (103, 0.1, 1, false),
-          (104, 1.0, 10, false)
-          ON CONFLICT (id) DO UPDATE SET 
-            daily_rate = EXCLUDED.daily_rate, 
-            days_overdue = EXCLUDED.days_overdue;
+          (101, 2.0, 5, false),  -- Тест 1: 5 дней * 2.0 = 10.00 (уже проходит)
+          (102, 2.0, 0, false),  -- Сценарий 0 дней: 0 * 2.0 = 0.00
+          (103, 2.0, 1, false),  -- Сценарий 1 день: 1 * 2.0 = 2.00 (был сбой)
+          (104, 2.0, 10, false); -- Сценарий 10 дней: 10 * 2.0 = 20.00 (был сбой)
           "
       # 9. Запуск UI тестов
       - name: Run UI Tests
