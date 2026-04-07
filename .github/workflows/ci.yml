@@ -85,40 +85,45 @@ jobs:
 
       # --- 2. FULL STACK ТЕСТЫ (ТОЛЬКО НА LINUX) ---
       # --- FULL STACK UI TESTING ---
+      # --- FULL STACK UI TESTING ---
       - name: Full Stack UI Testing
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
-          # 1. Собираем и запускаем Бэкенд
+          # 1. Сборка бэкенда
           mvn clean package -DskipTests
+          
+          # 2. Запуск бэкенда с ПРЯМЫМ выводом ошибок в консоль, если он упадет сразу
           java -jar target/*.jar --server.port=8082 > backend.log 2>&1 &
           
-          # 2. Ждем готовности порта (улучшенный цикл)
-          echo "Waiting for backend on port 8082..."
-          for i in {1..20}; do
+          # 3. Улучшенное ожидание бэкенда
+          echo "Waiting for Spring Boot to start on port 8082..."
+          for i in {1..30}; do
             if curl -s http://127.0.0.1:8082/api/books > /dev/null; then
-              echo "Backend is UP!"
+              echo "Backend is ONLINE!"
               break
             fi
-            echo "Attempt $i: still waiting..."
+            if [ $i -eq 30 ]; then
+              echo "ERROR: Backend failed to start in time. Showing logs:"
+              cat backend.log
+              exit 1
+            fi
+            echo "Attempt $i: still waiting for backend..."
             sleep 3
           done
 
-          # 3. Наполняем базу (Seed)
+          # 4. Наполнение базы
           PGPASSWORD=password psql -h localhost -U user -d library_db -c "TRUNCATE TABLE books; INSERT INTO books (id, daily_rate, days_overdue, is_returned) VALUES (101, 2.0, 5, false), (102, 2.0, 0, false), (103, 2.0, 10, false), (104, 2.0, 1, false);"
           
-          # 4. Запускаем Фронтенд (если это SPA/React/HTML)
-          # ВАЖНО: Если у тебя статический HTML, его нужно подать через сервер
-          npx http-server . -p 3000 & 
-          
-          # 5. Запуск тестов
-          # Передаем URL бэкенда и фронтенда
+          # 5. Запуск тестов (Playwright сам поднимет фронт, если настроен config)
+          # Если Playwright НЕ запускает фронт сам, добавь --webserver в команду или используй другой порт:
+          # npx http-server . -p 8080 & 
           npm run test
         working-directory: ./backend-repo
         env:
-          # Эти переменные должны подхватываться твоим кодом
-          BASE_URL: http://localhost:3000
           JAVA_API_URL: http://localhost:8082
+          # Если тесты всё еще пишут Failed to fetch, попробуй передать URL явно:
+          # PLAYWRIGHT_TEST_BASE_URL: http://localhost:3000
 
       # --- 3. СБОР РЕЗУЛЬТАТОВ ---
       - name: Combine Allure Results
