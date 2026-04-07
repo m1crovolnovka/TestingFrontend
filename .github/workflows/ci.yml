@@ -90,12 +90,21 @@ jobs:
         run: |
           timeout 60s bash -c 'until curl -s localhost:8082 > /dev/null; do sleep 2; echo "Still waiting for 8082..."; done' || (echo "Бэкенд не поднялся!" && cat backend-repo/backend.log && exit 1)
 
-      # 8. (ВАЖНО) Наполнение базы данными для UI-тестов
-      # Если тесты ищут ID 101, мы должны его создать
+      # 8. Наполнение базы всеми нужными данными для Data-Driven тестов
       - name: Seed Database
         run: |
-          PGPASSWORD=password psql -h localhost -U user -d library_db -c "INSERT INTO books (id, daily_rate, days_overdue, is_returned) VALUES (101, 2.0, 5, false) ON CONFLICT DO NOTHING;"
-
+          # Вставляем данные для всех сценариев. 
+          # Замени ID и значения на те, которые реально используются в твоем Data-Driven массиве в JS
+          PGPASSWORD=password psql -h localhost -U user -d library_db -c "
+          INSERT INTO books (id, daily_rate, days_overdue, is_returned) VALUES 
+          (101, 2.0, 5, false),
+          (102, 1.0, 0, false),
+          (103, 0.1, 1, false),
+          (104, 1.0, 10, false)
+          ON CONFLICT (id) DO UPDATE SET 
+            daily_rate = EXCLUDED.daily_rate, 
+            days_overdue = EXCLUDED.days_overdue;
+          "
       # 9. Запуск UI тестов
       - name: Run UI Tests
         run: npm run test
