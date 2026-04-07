@@ -84,34 +84,40 @@ jobs:
           SPRING_JPA_HIBERNATE_DDL_AUTO: update
 
       # --- 2. FULL STACK ТЕСТЫ (ТОЛЬКО НА LINUX) ---
+      # --- FULL STACK UI TESTING ---
       - name: Full Stack UI Testing
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
-          # Сборка
+          # 1. Собираем и запускаем Бэкенд
           mvn clean package -DskipTests
-          
-          # Запуск
           java -jar target/*.jar --server.port=8082 > backend.log 2>&1 &
           
-          # Ждем, пока проснется (увеличим лог для отладки)
-          echo "Waiting for backend..."
-          for i in {1..30}; do
-            if curl -s http://localhost:8082 > /dev/null; then
+          # 2. Ждем готовности порта (улучшенный цикл)
+          echo "Waiting for backend on port 8082..."
+          for i in {1..20}; do
+            if curl -s http://127.0.0.1:8082/api/books > /dev/null; then
               echo "Backend is UP!"
               break
             fi
-            echo "Attempt $i: Backend is still sleeping..."
+            echo "Attempt $i: still waiting..."
             sleep 3
           done
 
-          # Seed DB
+          # 3. Наполняем базу (Seed)
           PGPASSWORD=password psql -h localhost -U user -d library_db -c "TRUNCATE TABLE books; INSERT INTO books (id, daily_rate, days_overdue, is_returned) VALUES (101, 2.0, 5, false), (102, 2.0, 0, false), (103, 2.0, 10, false), (104, 2.0, 1, false);"
           
-          # Тесты
+          # 4. Запускаем Фронтенд (если это SPA/React/HTML)
+          # ВАЖНО: Если у тебя статический HTML, его нужно подать через сервер
+          npx http-server . -p 3000 & 
+          
+          # 5. Запуск тестов
+          # Передаем URL бэкенда и фронтенда
           npm run test
         working-directory: ./backend-repo
         env:
+          # Эти переменные должны подхватываться твоим кодом
+          BASE_URL: http://localhost:3000
           JAVA_API_URL: http://localhost:8082
 
       # --- 3. СБОР РЕЗУЛЬТАТОВ ---
