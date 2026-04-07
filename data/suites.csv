@@ -1,0 +1,8 @@
+"DESCRIPTION","DURATION IN MS","NAME","PARENT SUITE","START TIME","STATUS","STOP TIME","SUB SUITE","SUITE","TEST CLASS","TEST METHOD"
+"","377","Data-Driven позитивный: 1 день","","2026-04-07","passed","2026-04-07","Library Fine UI Tests","main-flow.spec.js","",""
+"","299","Негативный сценарий: отрицательный ID","","2026-04-07","passed","2026-04-07","Library Fine UI Tests","main-flow.spec.js","",""
+"","726","Расчет для книги с просрочкой в 5 дней (ID 101)","","2026-04-07","passed","2026-04-07","Library Fine UI Tests","main-flow.spec.js","",""
+"","407","Data-Driven позитивный: 0 дней","","2026-04-07","passed","2026-04-07","Library Fine UI Tests","main-flow.spec.js","",""
+"","398","Проверка корректности вычисления даты выдачи","","2026-04-07","passed","2026-04-07","Library Fine UI Tests","main-flow.spec.js","",""
+"","387","Data-Driven позитивный: 10 дней","","2026-04-07","passed","2026-04-07","Library Fine UI Tests","main-flow.spec.js","",""
+"","314","Негативный сценарий: несуществующий ID","","2026-04-07","passed","2026-04-07","Library Fine UI Tests","main-flow.spec.js","",""
