@@ -86,10 +86,11 @@ jobs:
           SPRING_DATASOURCE_USERNAME: user
           SPRING_DATASOURCE_PASSWORD: password
 
-      # 7. ОЖИДАНИЕ (теперь 90 секунд точно хватит для запуска JAR)
+      # 7. ОЖИДАНИЕ (используем проверку только порта или принимаем любой HTTP код)
       - name: Wait for Backend API
         run: |
-          npx wait-on http://localhost:8082 --timeout 90000 || (echo "Бэкенд не ответил! Логи:" && cat backend-repo/backend.log && exit 1)
+          # Флаг --httpStatusCode позволяет принимать 404 как успешный запуск
+          npx wait-on http://localhost:8082 --timeout 60000 --httpStatusCode 404 || (echo "Бэкенд не ответил! Логи:" && cat backend-repo/backend.log && exit 1)
 
       # 8. Запуск UI тестов
       - name: Run UI Tests
