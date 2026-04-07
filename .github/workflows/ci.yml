@@ -84,46 +84,38 @@ jobs:
           SPRING_JPA_HIBERNATE_DDL_AUTO: update
 
       # --- 2. FULL STACK ТЕСТЫ (ТОЛЬКО НА LINUX) ---
-      # --- FULL STACK UI TESTING ---
-      # --- FULL STACK UI TESTING ---
       - name: Full Stack UI Testing
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
-          # 1. Сборка бэкенда
+          # 1. Сборка
           mvn clean package -DskipTests
           
-          # 2. Запуск бэкенда с ПРЯМЫМ выводом ошибок в консоль, если он упадет сразу
+          # 2. Запуск (используем кавычки для путей, если там есть подстановки)
+          # shellcheck disable=SC2086
           java -jar target/*.jar --server.port=8082 > backend.log 2>&1 &
           
-          # 3. Улучшенное ожидание бэкенда
-          echo "Waiting for Spring Boot to start on port 8082..."
+          echo "Waiting for Spring Boot..."
           for i in {1..30}; do
-            if curl -s http://127.0.0.1:8082/api/books > /dev/null; then
+            # Используем "$i" в кавычках (хотя для чисел это не критично, линтер просит)
+            if curl -s "http://127.0.0.1:8082/api/books" > /dev/null; then
               echo "Backend is ONLINE!"
               break
             fi
-            if [ $i -eq 30 ]; then
-              echo "ERROR: Backend failed to start in time. Showing logs:"
+            
+            if [ "$i" -eq 30 ]; then
+              echo "ERROR: Timeout"
               cat backend.log
               exit 1
             fi
-            echo "Attempt $i: still waiting for backend..."
+            echo "Attempt $i..."
             sleep 3
           done
 
-          # 4. Наполнение базы
-          PGPASSWORD=password psql -h localhost -U user -d library_db -c "TRUNCATE TABLE books; INSERT INTO books (id, daily_rate, days_overdue, is_returned) VALUES (101, 2.0, 5, false), (102, 2.0, 0, false), (103, 2.0, 10, false), (104, 2.0, 1, false);"
+          # 3. Seed DB (кавычки вокруг SQL запроса)
+          PGPASSWORD="password" psql -h localhost -U user -d library_db -c "TRUNCATE TABLE books; INSERT INTO books (id, daily_rate, days_overdue, is_returned) VALUES (101, 2.0, 5, false), (102, 2.0, 0, false), (103, 2.0, 10, false), (104, 2.0, 1, false);"
           
-          # 5. Запуск тестов (Playwright сам поднимет фронт, если настроен config)
-          # Если Playwright НЕ запускает фронт сам, добавь --webserver в команду или используй другой порт:
-          # npx http-server . -p 8080 & 
           npm run test
-        working-directory: ./backend-repo
-        env:
-          JAVA_API_URL: http://localhost:8082
-          # Если тесты всё еще пишут Failed to fetch, попробуй передать URL явно:
-          # PLAYWRIGHT_TEST_BASE_URL: http://localhost:3000
 
       # --- 3. СБОР РЕЗУЛЬТАТОВ ---
       - name: Combine Allure Results
