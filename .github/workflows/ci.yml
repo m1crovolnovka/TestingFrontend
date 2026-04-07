@@ -110,13 +110,24 @@ jobs:
         env:
           JAVA_API_URL: http://localhost:8082
 
-      # 8. Сбор результатов для Allure
-      - name: Save Allure Results
+      - name: Сбор всех результатов в одну папку
+        if: always()
+        run: |
+          # Создаем общую директорию для Allure
+          mkdir -p all-results
+          
+          # Копируем результаты фронтенда (если они в корне)
+          cp -r allure-results/* all-results/ || true
+          
+          # Копируем результаты бэкенда из папки target
+          cp -r backend-repo/target/allure-results/* all-results/ || true
+
+      - name: Save Combined Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: allure-results
-          path: allure-results/
+          path: all-results/
 
 
   # --- ОТЧЕТЫ И TELEGRAM ---
