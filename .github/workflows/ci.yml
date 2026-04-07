@@ -146,7 +146,7 @@ jobs:
           allure generate all-raw-results -o allure-report --clean
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4 # Заменил v3 на v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./allure-report
