@@ -114,9 +114,16 @@ jobs:
         shell: bash
         run: |
           mkdir -p combined-results
-          [ -d allure-results ] && cp -r allure-results/* combined-results/ || true
-          [ -d backend-repo/target/allure-results ] && cp -r backend-repo/target/allure-results/* combined-results/ || true
-
+          
+          # Вместо [ -d A ] && cp A B || echo "no", используем чистые проверки:
+          if [ -d "allure-results" ]; then
+            cp -r allure-results/* combined-results/
+          fi
+          
+          if [ -d "backend-repo/target/allure-results" ]; then
+            cp -r backend-repo/target/allure-results/* combined-results/
+          fi
+          
       - name: Upload Results
         if: always()
         uses: actions/upload-artifact@v4
