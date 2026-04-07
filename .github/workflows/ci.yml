@@ -84,27 +84,29 @@ jobs:
           SPRING_JPA_HIBERNATE_DDL_AUTO: update
 
       # --- 2. FULL STACK ТЕСТЫ (ТОЛЬКО НА LINUX) ---
+      # --- FULL STACK UI TESTING ---
       - name: Full Stack UI Testing
         if: matrix.os == 'ubuntu-latest'
         shell: bash
+        # УКАЗЫВАЕМ ПРАВИЛЬНУЮ ПАПКУ ЗДЕСЬ
+        working-directory: ./backend-repo
         run: |
-          # 1. Сборка
+          # 1. Сборка (теперь Maven увидит pom.xml в папке backend-repo)
           mvn clean package -DskipTests
           
-          # 2. Запуск (используем кавычки для путей, если там есть подстановки)
+          # 2. Запуск (используем кавычки для переменных)
           # shellcheck disable=SC2086
           java -jar target/*.jar --server.port=8082 > backend.log 2>&1 &
           
           echo "Waiting for Spring Boot..."
           for i in {1..30}; do
-            # Используем "$i" в кавычках (хотя для чисел это не критично, линтер просит)
             if curl -s "http://127.0.0.1:8082/api/books" > /dev/null; then
               echo "Backend is ONLINE!"
               break
             fi
             
             if [ "$i" -eq 30 ]; then
-              echo "ERROR: Timeout"
+              echo "ERROR: Timeout - Backend logs:"
               cat backend.log
               exit 1
             fi
@@ -112,11 +114,14 @@ jobs:
             sleep 3
           done
 
-          # 3. Seed DB (кавычки вокруг SQL запроса)
+          # 3. Seed DB
           PGPASSWORD="password" psql -h localhost -U user -d library_db -c "TRUNCATE TABLE books; INSERT INTO books (id, daily_rate, days_overdue, is_returned) VALUES (101, 2.0, 5, false), (102, 2.0, 0, false), (103, 2.0, 10, false), (104, 2.0, 1, false);"
           
+          # 4. Запуск UI тестов
+          # Если Playwright в корне Frontend, нужно выйти на уровень выше
+          cd ..
           npm run test
-
+          
       # --- 3. СБОР РЕЗУЛЬТАТОВ ---
       - name: Combine Allure Results
         if: always()
@@ -160,7 +165,7 @@ jobs:
           allure generate all-raw-results -o allure-report --clean
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4 # Заменил v3 на v4
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./allure-report
