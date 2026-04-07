@@ -119,13 +119,13 @@ jobs:
           cp -r allure-results/* combined-results/ || echo "No frontend results"
           # Копируем результаты бэкенда (ВАЖНО: проверь путь до target)
           cp -r backend-repo/target/allure-results/* combined-results/ || echo "No backend results"
-
-      # 4. ГЕНЕРАЦИЯ ОТЧЕТА ИЗ ОБЩЕЙ ПАПКИ
-      - name: Generate Allure Report
-        if: always()
-        run: |
-          npm install -g allure-commandline
-          allure generate combined-results -o allure-report --clean
+  
+      - name: Save Allure Results
+        if: always() # <--- ЭТО САМОЕ ВАЖНОЕ (загружать даже если тесты упали)
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results # Запомните это имя
+          path: combined-results/
 
 
   # --- ОТЧЕТЫ И TELEGRAM ---
