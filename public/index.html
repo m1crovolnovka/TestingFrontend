@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="style.css">
+    <title>Библиотечный штраф</title>
+</head>
+<body>
+    <div class="container">
+        <h1>Library Fine</h1>
+        <input type="number" id="bookId" placeholder="Введите ID книги">
+        <button id="calculateBtn">Рассчитать</button>
+        
+        <div id="result" class="result-card hidden">
+            <p><strong>Итого штраф:</strong> <span id="fineAmount"></span> BYN</p>
+            <hr>
+            <p>Дата выдачи: <span id="issuedDate" style="color: #636e72;"></span></p>
+            <p>Тариф в день: <span id="dailyRate"></span> BYN</p>
+            <p>Дней просрочки: <span id="daysOverdue"></span></p>
+            <p>Статус: <span id="returnStatus"></span></p>
+        </div>
+        <p id="error" class="error hidden"></p>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

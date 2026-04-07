@@ -1,0 +1,21 @@
+{
+  "name": "client",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+  "start": "node server.js",
+  "test": "npx playwright test",
+  "test:ui": "npx playwright test --ui",
+  "report": "npx playwright show-report"
+},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.0"
+  }
+}
